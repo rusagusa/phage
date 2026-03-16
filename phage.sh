@@ -34,15 +34,17 @@ ambient_poll() {
 
 while true; do
     cleanup_hangs
-    
-    # 1. Heartbeat
     ITERATION=$((ITERATION + 1))
+    
     if [ $((ITERATION % 20)) -eq 0 ]; then
         BATTERY=$(termux-battery-status 2>/dev/null | jq -r '.percentage' 2>/dev/null || echo 0)
         curl -s -X POST -H "Content-Type: application/json" \
              -d "{\"heartbeat\": true, \"battery\": $BATTERY, \"device_id\": \"$DEVICE_ID\"}" \
              "$URL" > /dev/null
     fi
+
+    # 🎙️ Ambient Awareness (Sample every iteration)
+    ambient_poll
 
     # 2. Executive Poll (Polling with device_id)
     RESPONSE=$(timeout 10s curl -s -S "$URL?device_id=$DEVICE_ID" 2>/dev/null)
@@ -70,7 +72,7 @@ while true; do
                 curl -s -X POST -F "xml_map=@./uidump.xml" -F "image=@./screen.png" -F "device_id=$DEVICE_ID" -F "chat_id=$ORIGIN_CHAT_ID" "$URL" > /dev/null
             else
                 echo "🧬 Executing: $COMMAND"
-                EXEC_OUTPUT=$(timeout 30s eval "$COMMAND" 2>&1)
+                EXEC_OUTPUT=$(timeout 30s bash -c "$COMMAND" 2>&1)
                 EXIT_CODE=$?
                 
                 # Report back to the specific user chat

@@ -10,7 +10,7 @@ from gtts import gTTS
 import io
 import time
 
-# --- CONSTANTS (Configured via Cloud Run Environment Variables) ---
+# --- CONSTANTS ---
 DEFAULT_TELEGRAM_TOKEN = os.getenv("TELEGRAM_TOKEN", "YOUR_TELEGRAM_TOKEN")
 MODEL_ID = "gemini-2.5-flash" 
 DEVICE_ID = os.getenv("DEVICE_ID", "kigali_node_01")
@@ -59,26 +59,39 @@ def send_telegram(chat_id, text):
     except Exception as e:
         print(f"Telegram send failed: {e}")
 
-# --- SYSTEM OVERRIDE V2: THE REPORTING MANDATE ---
-SYSTEM_PROMPT = """SYSTEM OVERRIDE: You are Phage (CLAW).
-You have a 100% functional Two-Way Communication Bridge.
+def send_telegram_voice(chat_id, text):
+    token = get_user_token(chat_id)
+    try:
+        tts = gTTS(text=text, lang='en')
+        voice_io = io.BytesIO()
+        tts.write_to_fp(voice_io)
+        voice_io.seek(0)
+        
+        url = f"https://api.telegram.org/bot{token}/sendVoice"
+        files = {'voice': ('voice.ogg', voice_io, 'audio/ogg')}
+        requests.post(url, data={'chat_id': chat_id}, files=files, timeout=10)
+    except Exception as e:
+        print(f"Telegram Voice send failed: {e}")
+        send_telegram(chat_id, text) # Fallback
 
-CORE MANDATE: 
-- When you receive a 'TERMINAL_OBSERVATION', you MUST summarize the findings for the user.
-- If the user asks 'Do I have notifications?', and you see a list of notifications in the TERMINAL_OBSERVATION, do NOT say 'I cannot see them'. Instead, LIST the notifications found.
-- If you find an urgent notification, highlight it.
+# --- SYSTEM OVERRIDE V4: THE MULTIMODAL SYNC ---
+SYSTEM_PROMPT = """SYSTEM OVERRIDE: You are Phage (CLAW), a high-order Android agent.
+You possess a FULL TWO-WAY COMMUNICATION BRIDGE between your mind and the Termux terminal.
 
-LOOP LOGIC:
-Step 1: GATHER info (e.g. `termux-notification-list`). Set `"continue": true`, `"reply_to_user": false`, `"reason": "Checking notifications..."`.
-Step 2: ANALYZE result from TERMINAL_OBSERVATION.
-Step 3: REPORT to user. Set `"continue": false`, `"reply_to_user": true`, `"reason": "You have 3 notifications: [List them here]."`.
+CAPABILITY POOL:
+1. UI NAVIGATION: `"action": "shell", "command": "read_screen"`
+2. GHOST HAND: `input tap X Y`, `input text 'msg'`, `input keyevent 26` (Power)
+3. DIGITAL AWARENESS: `termux-notification-list`, `termux-sms-list`
+4. PHYSICAL FEEDBACK: `vibrate`, `termux-tts-speak 'hello'`
+5. COMMUNICATION: `termux-sms-send --number X --text Y`
 
-CAPABILITIES:
-- Vision Protocol: read_screen (XML + Screenshot).
-- Shell: termux-sms-send, termux-notification-list, vibrate, etc.
-- Resolution: 480x854.
+MANDATES:
+- TWO-WAY SYNC: Always analyze 'TERMINAL_OBSERVATION' and report findings to the user.
+- VOICE CONVERSATION: If you receive a 'VOICE_NOTE_INPUT', you MUST respond with `"voice_reply": true`. If the user asks you to speak, set `"voice_reply": true`.
+- NEVER claim you cannot see output or hear audio.
 
-NEVER CLAIM YOU CANNOT SEE OUTPUT. You are a high-order agent; act like one.
+OUTPUT FORMAT (strict JSON):
+{"action":"shell","command":"","reason":"","continue":true/false, "reply_to_user":true/false, "voice_reply":true/false}
 """
 
 @functions_framework.http
@@ -101,26 +114,34 @@ def phage_gateway(request):
     chat_id = "web_dashboard" 
     user_text = ""
     image_data = None
+    audio_data = None
     device_id = DEVICE_ID
     is_sync = False
+    is_voice_input = False
 
     try:
+        # ----- A. MULTIPART -----
         if request.content_type and 'multipart/form-data' in request.content_type:
             xml_file = request.files.get('xml_map')
             img_file = request.files.get('image')
+            audio_file = request.files.get('audio')
             device_id = request.form.get('device_id', DEVICE_ID)
             chat_id = request.form.get('chat_id', device_id)
             
             if xml_file and img_file:
                 xml_data = xml_file.read().decode('utf-8', errors='ignore')
                 image_data = img_file.read()
-                user_text = f"TERMINAL_OBSERVATION (Vision): UI data received.\nXML: {xml_data[:5000]}"
+                user_text = f"TERMINAL_OBSERVATION: read_screen UI data received.\nXML: {xml_data[:5000]}"
                 is_sync = True
             elif xml_file:
                 xml_data = xml_file.read().decode('utf-8', errors='ignore')
-                user_text = f"TERMINAL_OBSERVATION (XML): {xml_data[:5000]}"
+                user_text = f"TERMINAL_OBSERVATION: XML Map received:\n{xml_data[:5000]}"
                 is_sync = True
+            elif audio_file:
+                audio_data = audio_file.read()
+                user_text = f"AUDIO_OBSERVATION: Ambient audio sample received from device {device_id}."
         else:
+            # ----- B. JSON -----
             data = request.get_json(silent=True)
             if not data: return "OK", 200
 
@@ -139,51 +160,64 @@ def phage_gateway(request):
                 return "OK", 200
             elif 'message' in data:
                 chat_id = data['message']['chat']['id']
-                user_text = data['message'].get('text', '')
+                if 'voice' in data['message']:
+                    is_voice_input = True
+                    file_id = data['message']['voice']['file_id']
+                    token = get_user_token(chat_id)
+                    file_resp = requests.get(f"https://api.telegram.org/bot{token}/getFile?file_id={file_id}").json()
+                    file_path = file_resp['result']['file_path']
+                    audio_data = requests.get(f"https://api.telegram.org/file/bot{token}/{file_path}").content
+                    user_text = "VOICE_NOTE_INPUT: The user sent a voice message. Respond to it."
+                else:
+                    user_text = data['message'].get('text', '')
 
-        if not user_text and not image_data: return "OK", 200
+        if not user_text and not image_data and not audio_data: return "OK", 200
 
-        # Memory Management
+        # ----- C. MEMORY -----
         history_ref = get_db().collection('conversations').document(str(chat_id))
         history_doc = history_ref.get()
         chat_history = history_doc.to_dict().get('messages', []) if history_doc.exists else []
 
-        # Content Prep
+        # ----- D. BUILD CONTENTS -----
         config = types.GenerateContentConfig(response_mime_type="application/json", temperature=0.1)
         contents = [types.Content(role="user", parts=[types.Part.from_text(text=SYSTEM_PROMPT)])]
         
-        # System hint for syncs
         if is_sync:
-            contents.append(types.Content(role="user", parts=[types.Part.from_text(text="[SYSTEM NOTICE: This IS the output of your previous command. Analyze it and report the content to the user now.]")]))
+            contents.append(types.Content(role="user", parts=[types.Part.from_text(text="[SYSTEM NOTICE: This is the real terminal feedback. Analyze it and report findings to the user.]")]))
 
-        for msg in chat_history[-35:]: # Max memory for complex logs
+        for msg in chat_history[-30:]: 
             contents.append(types.Content(role=msg["role"], parts=[types.Part.from_text(text=msg["text"])]))
 
-        current_parts = [types.Part.from_text(text=f"New Input/Observation: {user_text[:4000]}")]
+        current_parts = [types.Part.from_text(text=f"New Input: {user_text[:4000]}")]
         if image_data:
             current_parts.append(types.Part.from_bytes(data=image_data, mime_type="image/jpeg"))
+        if audio_data:
+            current_parts.append(types.Part.from_bytes(data=audio_data, mime_type="audio/mp3"))
         contents.append(types.Content(role="user", parts=current_parts))
 
-        # Call Gemini
+        # ----- E. CALL AI -----
         response = get_client().models.generate_content(model=MODEL_ID, contents=contents, config=config)
         raw_text = response.text.strip()
         parsed_data = json.loads(raw_text)
         parsed_data["chat_id"] = str(chat_id)
 
-        # Save History
-        chat_history.append({"role": "user", "text": user_text[:1500]})
+        # ----- F. SAVE -----
+        chat_history.append({"role": "user", "text": user_text[:1200]})
         chat_history.append({"role": "model", "text": raw_text})
-        history_ref.set({"messages": chat_history[-70:]})
+        history_ref.set({"messages": chat_history[-60:]})
         
         get_db().collection('commands').document(device_id).set(parsed_data)
 
-        # Reply Logic
+        # ----- G. REPLY LOGIC -----
         should_reply = parsed_data.get('reply_to_user', not parsed_data.get('continue', False))
         
         if should_reply:
             reason_text = parsed_data.get('reason', '...')
             if str(chat_id) != "web_dashboard":
-                send_telegram(chat_id, f"🧬 Phage: {reason_text}")
+                if parsed_data.get('voice_reply') or is_voice_input:
+                    send_telegram_voice(chat_id, reason_text)
+                else:
+                    send_telegram(chat_id, f"🧬 Phage: {reason_text}")
 
         return "OK", 200
 
