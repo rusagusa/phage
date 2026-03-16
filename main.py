@@ -1,4 +1,5 @@
 import functions_framework
+import os
 from google import genai
 from google.cloud import firestore
 from google.genai import types
@@ -9,10 +10,10 @@ from gtts import gTTS
 import io
 import time
 
-# --- CONSTANTS ---
-DEFAULT_TELEGRAM_TOKEN = "YOUR_TELEGRAM_TOKEN"
+# --- CONSTANTS (Configured via Cloud Run Environment Variables) ---
+DEFAULT_TELEGRAM_TOKEN = os.getenv("TELEGRAM_TOKEN", "YOUR_TELEGRAM_TOKEN")
 MODEL_ID = "gemini-2.5-flash" 
-DEVICE_ID = "kigali_node_01"
+DEVICE_ID = os.getenv("DEVICE_ID", "kigali_node_01")
 
 # --- LAZY INIT GLOBALS ---
 db = None
@@ -27,7 +28,8 @@ def get_db():
 def get_client():
     global ai_client
     if ai_client is None:
-        ai_client = genai.Client(api_key="YOUR_GEMINI_API_KEY")
+        api_key = os.getenv("GEMINI_API_KEY", "YOUR_GEMINI_API_KEY")
+        ai_client = genai.Client(api_key=api_key)
     return ai_client
 
 def log_to_db(msg_type, message):
