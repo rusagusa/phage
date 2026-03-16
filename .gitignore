@@ -1,0 +1,15 @@
+# Phage OS Gitignore
+__pycache__/
+*.json
+!package.json
+!firebase.js
+*.log
+*.txt
+*.png
+!view.png
+.env
+node_modules/
+dist/
+build/
+.gcloudignore
+Procfile
