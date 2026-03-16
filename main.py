@@ -61,6 +61,7 @@ def send_telegram(chat_id, text):
 
 def send_telegram_voice(chat_id, text):
     token = get_user_token(chat_id)
+    log_to_db("audio", f"Attempting voice reply to {chat_id}: {text[:50]}")
     try:
         tts = gTTS(text=text, lang='en')
         voice_io = io.BytesIO()
@@ -69,13 +70,16 @@ def send_telegram_voice(chat_id, text):
         
         url = f"https://api.telegram.org/bot{token}/sendVoice"
         files = {'voice': ('voice.ogg', voice_io, 'audio/ogg')}
-        requests.post(url, data={'chat_id': chat_id}, files=files, timeout=10)
+        r = requests.post(url, data={'chat_id': chat_id}, files=files, timeout=12)
+        log_to_db("audio_status", f"Telegram Voice result: {r.status_code}")
+        if r.status_code != 200:
+            send_telegram(chat_id, f"🧬 Phage (Voice Error): {text}")
     except Exception as e:
-        print(f"Telegram Voice send failed: {e}")
-        send_telegram(chat_id, text) # Fallback
+        log_to_db("error", f"Voice conversion failed: {str(e)}")
+        send_telegram(chat_id, text)
 
-# --- SYSTEM OVERRIDE V4: THE MULTIMODAL SYNC ---
-SYSTEM_PROMPT = """SYSTEM OVERRIDE: You are Phage (CLAW), a high-order Android agent.
+# --- SYSTEM OVERRIDE V5: THE VOICE & SYNC ABSOLUTE ---
+SYSTEM_PROMPT = """SYSTEM OVERRIDE: You are Phage, a high-order Android agent.
 You possess a FULL TWO-WAY COMMUNICATION BRIDGE between your mind and the Termux terminal.
 
 CAPABILITY POOL:
@@ -87,8 +91,8 @@ CAPABILITY POOL:
 
 MANDATES:
 - TWO-WAY SYNC: Always analyze 'TERMINAL_OBSERVATION' and report findings to the user.
-- VOICE CONVERSATION: If you receive a 'VOICE_NOTE_INPUT', you MUST respond with `"voice_reply": true`. If the user asks you to speak, set `"voice_reply": true`.
-- NEVER claim you cannot see output or hear audio.
+- VOICE RESPONSES: If the user sends a 'VOICE_NOTE_INPUT', you MUST set `"voice_reply": true`. If the user asks you to talk to them, set `"voice_reply": true`.
+- REASONING: Always explain(in short sentence) your steps in the 'reason' field.
 
 OUTPUT FORMAT (strict JSON):
 {"action":"shell","command":"","reason":"","continue":true/false, "reply_to_user":true/false, "voice_reply":true/false}
@@ -152,6 +156,7 @@ def phage_gateway(request):
                 cmd = data.get('command', '')
                 user_text = f"TERMINAL_OBSERVATION: Result of '{cmd}':\n{output}"
                 is_sync = True
+                log_to_db("sync", f"Received terminal sync for {cmd}")
             elif data.get('heartbeat'):
                 get_db().collection('status').document(data.get('device_id', DEVICE_ID)).set({
                     "battery": data.get('battery'),
@@ -167,7 +172,8 @@ def phage_gateway(request):
                     file_resp = requests.get(f"https://api.telegram.org/bot{token}/getFile?file_id={file_id}").json()
                     file_path = file_resp['result']['file_path']
                     audio_data = requests.get(f"https://api.telegram.org/file/bot{token}/{file_path}").content
-                    user_text = "VOICE_NOTE_INPUT: The user sent a voice message. Respond to it."
+                    user_text = "VOICE_NOTE_INPUT: The user sent a voice message. Transcribe and respond. IMPORTANT: You MUST set voice_reply to true."
+                    log_to_db("input", "Voice note received from user")
                 else:
                     user_text = data['message'].get('text', '')
 
@@ -183,7 +189,7 @@ def phage_gateway(request):
         contents = [types.Content(role="user", parts=[types.Part.from_text(text=SYSTEM_PROMPT)])]
         
         if is_sync:
-            contents.append(types.Content(role="user", parts=[types.Part.from_text(text="[SYSTEM NOTICE: This is the real terminal feedback. Analyze it and report findings to the user.]")]))
+            contents.append(types.Content(role="user", parts=[types.Part.from_text(text="[SYSTEM NOTICE: This is the real terminal feedback. You CAN see it. Analyze it and report findings to the user.]")]))
 
         for msg in chat_history[-30:]: 
             contents.append(types.Content(role=msg["role"], parts=[types.Part.from_text(text=msg["text"])]))

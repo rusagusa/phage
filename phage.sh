@@ -1,5 +1,5 @@
 #!/bin/bash
-# PHAGE MUSCLE V2.3: VISION PROTOCOL + SWARM SUPPORT
+# PHAGE MUSCLE V2.4: FIXED EXEC + VOICE RESPONSE + SWARM
 # 🧬 "The Decentralized Swarm Muscle"
 
 # 1. SETUP: Ask for Device ID if not set
@@ -9,10 +9,11 @@ if [ -z "$DEVICE_ID" ]; then
 fi
 
 exec > >(tee -a /sdcard/Download/phage.log) 2>&1
+# URL="https://phage-gatway-343327310617.europe-west1.run.app"
 URL="YOUR_CLOUD_RUN_URL"
 STATE="IDLE"
 
-echo "🧬 Phage Muscle Swarm Online ($DEVICE_ID)"
+echo "🧬 Phage Muscle Swarm [v2.4 - THE FIX] Online ($DEVICE_ID)"
 
 # 🛡️ Watchdog
 cleanup_hangs() {
@@ -43,8 +44,10 @@ while true; do
              "$URL" > /dev/null
     fi
 
-    # 🎙️ Ambient Awareness (Sample every iteration)
-    ambient_poll
+    # 🎙️ Ambient Awareness (Sample occasionally)
+    if [ $((ITERATION % 5)) -eq 0 ]; then
+        ambient_poll
+    fi
 
     # 2. Executive Poll (Polling with device_id)
     RESPONSE=$(timeout 10s curl -s -S "$URL?device_id=$DEVICE_ID" 2>/dev/null)
@@ -57,7 +60,7 @@ while true; do
         ORIGIN_CHAT_ID=$(echo "$RESPONSE" | jq -r '.chat_id // empty')
 
         if [ -n "$COMMAND" ] && [ "$COMMAND" != "null" ]; then
-            echo "📥 BRAIN: $REASON"
+            echo "📥 BRAIN [v2.4]: $REASON"
             
             # --- VISION PROTOCOL EXECUTION ---
             if [ "$COMMAND" == "read_screen" ]; then
@@ -72,7 +75,8 @@ while true; do
                 curl -s -X POST -F "xml_map=@./uidump.xml" -F "image=@./screen.png" -F "device_id=$DEVICE_ID" -F "chat_id=$ORIGIN_CHAT_ID" "$URL" > /dev/null
             else
                 echo "🧬 Executing: $COMMAND"
-                EXEC_OUTPUT=$(timeout 30s bash -c "$COMMAND" 2>&1)
+                # THE FIX: Avoid 'eval' inside timeout directly. Use bash -c explicitly.
+                EXEC_OUTPUT=$(timeout --foreground 30s bash -c "$COMMAND" 2>&1)
                 EXIT_CODE=$?
                 
                 # Report back to the specific user chat
