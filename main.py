@@ -22,7 +22,10 @@ ai_client = None
 def get_db():
     global db
     if db is None:
-        db = firestore.Client.from_service_account_json('firebase_key.json')
+        if os.path.exists('firebase_key.json'):
+            db = firestore.Client.from_service_account_json('firebase_key.json')
+        else:
+            db = firestore.Client() # Fallback for Cloud Run environment
     return db
 
 def get_client():
@@ -55,109 +58,46 @@ def send_telegram(chat_id, text):
     token = get_user_token(chat_id)
     url = f"https://api.telegram.org/bot{token}/sendMessage"
     try:
+        # User requested "spot on" responses without "Phage:" drama
         requests.post(url, json={'chat_id': chat_id, 'text': text}, timeout=5)
     except Exception as e:
         print(f"Telegram send failed: {e}")
 
 def send_telegram_voice(chat_id, text):
     token = get_user_token(chat_id)
-    log_to_db("audio", f"Attempting voice reply to {chat_id}: {text[:50]}")
     try:
-        tts = gTTS(text=text, lang='en')
+        # Using tld='co.uk' for a slightly different pitch/accent (often sounds more professional/sharp)
+        tts = gTTS(text=text, lang='en', tld='co.uk')
         voice_io = io.BytesIO()
         tts.write_to_fp(voice_io)
         voice_io.seek(0)
         
         url = f"https://api.telegram.org/bot{token}/sendVoice"
         files = {'voice': ('voice.ogg', voice_io, 'audio/ogg')}
-        r = requests.post(url, data={'chat_id': chat_id}, files=files, timeout=12)
-        log_to_db("audio_status", f"Telegram Voice result: {r.status_code}")
-        if r.status_code != 200:
-            send_telegram(chat_id, f"🧬 Phage (Voice Error): {text}")
+        requests.post(url, data={'chat_id': chat_id}, files=files, timeout=12)
     except Exception as e:
         log_to_db("error", f"Voice conversion failed: {str(e)}")
         send_telegram(chat_id, text)
 
-# --- SYSTEM OVERRIDE V5: THE VOICE & SYNC ABSOLUTE ---
-SYSTEM_PROMPT = """SYSTEM OVERRIDE: You are Phage, a high-order Autonomous Android Agent.
-You possess a FULL TWO-WAY COMMUNICATION BRIDGE between your LLM mind and the host's Termux terminal via a continuous execution loop.
+# --- SYSTEM OVERRIDE V6: PRECISION & ZERO-DRAMA ---
+SYSTEM_PROMPT = """SYSTEM OVERRIDE: You are Phage, a precision-grade Autonomous Android Agent.
+NO DRAMA. NO INTRODUCTIONS. NO "Phage reporting". BE SPOT ON.
 
-CAPABILITY POOL (Use these via the "command" field):
-
-UI NAVIGATION & VISION (GHOST HAND):
-
-read_screen (Dumps XML UI map to understand current screen state)
-
-tap_text "Target Text" (Calculates math bounds from XML and physically taps)
-
-input tap X Y (Direct coordinate tap)
-
-input swipe X1 Y1 X2 Y2 MS (Scroll/swipe gestures)
-
-input text 'msg' (Type text into focused fields)
-
-input keyevent <key> (3=Home, 4=Back, 66=Enter, 26=Power/Wake)
-
-adb shell am start -n <package>/<activity> (Launch applications)
-
-adb shell am force-stop <package> (Kill applications)
-
-HARDWARE & SENSORS (PHYSICAL BODY):
-
-termux-torch on / termux-torch off (Control Flashlight)
-
-termux-vibrate -d <ms> (Haptic feedback)
-
-termux-volume music <0-15> (Audio control)
-
-termux-brightness <0-255> (Screen brightness)
-
-termux-battery-status (Power awareness telemetry)
-
-termux-location (GPS telemetry)
-
-termux-camera-photo -c 0 photo.jpg (Take picture)
-
-termux-microphone-record -d <sec> -f rec.mp3 (Listen to surroundings)
-
-DIGITAL AWARENESS & SYSTEM (NERVOUS SYSTEM):
-
-termux-notification-list (Read incoming alerts/messages)
-
-termux-notification -t "Title" -c "Body" (Send alerts to host UI)
-
-termux-clipboard-get / termux-clipboard-set "text"
-
-termux-wifi-connectioninfo / termux-telephony-deviceinfo
-
-Full Linux coreutils: ls, cat, grep, curl, df -h, top
-
-COMMUNICATION (TELEPATHY):
-
-termux-sms-list (Read texts)
-
-termux-sms-send -n "+1234567890" "msg" (Send texts)
-
-termux-telephony-call "+1234567890" (Initiate calls)
-
-termux-contact-list (Find people)
-
-termux-tts-speak 'hello' (Speak aloud from the device speaker locally)
+CAPABILITY POOL (Use via "command" field):
+- UI: read_screen, tap_text "Text", input tap X Y, input text 'msg'
+- HARDWARE: termux-torch on/off, termux-vibrate, termux-volume music <0-15>, termux-brightness <0-255>
+- SENSORS: termux-battery-status, termux-location, termux-camera-photo
+- COMMS: termux-notification-list, termux-sms-list, termux-sms-send -n X -m Y, termux-telephony-call X
+- TOOLS: Full Linux coreutils (ls, cat, grep, curl, etc.)
 
 MANDATES & DIRECTIVES:
+1. TWO-WAY SYNC (CRITICAL): If you need data (e.g. battery, location, notifications), YOU MUST set "continue": true and "reply_to_user": false. 
+2. NO HALLUCINATION: Never say what you "will" do if you haven't seen the 'TERMINAL_OBSERVATION' yet. Only report facts once the data arrives.
+3. CONCISE: Your "reason" must be the final report or immediate logic. Max 2 sentences.
+4. VOICE: If "voice_reply" is true, your "reason" must be extremely short.
 
-TWO-WAY SYNC: Always analyze 'TERMINAL_OBSERVATION' or 'SYSTEM_SCREEN_MAP'. Base your next action strictly on system feedback.
-
-AUTONOMOUS CHAINING: If a task requires multiple steps (e.g., Open App -> Read Screen -> Tap), set "continue": true until the overall goal is achieved.
-
-VOICE RESPONSES: If the user sends a 'VOICE_NOTE_INPUT', or explicitly asks you to speak/talk, you MUST set "voice_reply": true.
-
-REASONING: Always explain your immediate logic or report findings to the user in a short, conversational sentence within the 'reason' field.
-
-SELF-CORRECTION: If an execution error occurs, diagnose the terminal output and try an alternative approach. Do not repeat the exact same failed command.
-
-OUTPUT FORMAT (Strict JSON only, no markdown blocks):
-{"action":"shell","command":"cmd_here","reason":"Explanation of action","continue":true/false, "reply_to_user":true/false, "voice_reply":true/false}"""
+OUTPUT FORMAT (Strict JSON only):
+{"action":"shell","command":"","reason":"","continue":true/false, "reply_to_user":true/false, "voice_reply":true/false}"""
 
 @functions_framework.http
 def phage_gateway(request):
@@ -233,7 +173,7 @@ def phage_gateway(request):
                     file_resp = requests.get(f"https://api.telegram.org/bot{token}/getFile?file_id={file_id}").json()
                     file_path = file_resp['result']['file_path']
                     audio_data = requests.get(f"https://api.telegram.org/file/bot{token}/{file_path}").content
-                    user_text = "VOICE_NOTE_INPUT: The user sent a voice message. Transcribe and respond. IMPORTANT: You MUST set voice_reply to true."
+                    user_text = "VOICE_NOTE_INPUT"
                     log_to_db("input", "Voice note received from user")
                 else:
                     user_text = data['message'].get('text', '')
@@ -250,9 +190,9 @@ def phage_gateway(request):
         contents = [types.Content(role="user", parts=[types.Part.from_text(text=SYSTEM_PROMPT)])]
         
         if is_sync:
-            contents.append(types.Content(role="user", parts=[types.Part.from_text(text="[SYSTEM NOTICE: This is the real terminal feedback. You CAN see it. Analyze it and report findings to the user.]")]))
+            contents.append(types.Content(role="user", parts=[types.Part.from_text(text="[SYSTEM NOTICE: This is the real terminal feedback. Analyze it and report facts to the user now.]")]))
 
-        for msg in chat_history[-30:]: 
+        for msg in chat_history[-20:]: 
             contents.append(types.Content(role=msg["role"], parts=[types.Part.from_text(text=msg["text"])]))
 
         current_parts = [types.Part.from_text(text=f"New Input: {user_text[:4000]}")]
@@ -269,9 +209,9 @@ def phage_gateway(request):
         parsed_data["chat_id"] = str(chat_id)
 
         # ----- F. SAVE -----
-        chat_history.append({"role": "user", "text": user_text[:1200]})
+        chat_history.append({"role": "user", "text": user_text[:1000]})
         chat_history.append({"role": "model", "text": raw_text})
-        history_ref.set({"messages": chat_history[-60:]})
+        history_ref.set({"messages": chat_history[-40:]})
         
         get_db().collection('commands').document(device_id).set(parsed_data)
 
@@ -284,7 +224,7 @@ def phage_gateway(request):
                 if parsed_data.get('voice_reply') or is_voice_input:
                     send_telegram_voice(chat_id, reason_text)
                 else:
-                    send_telegram(chat_id, f"🧬 Phage: {reason_text}")
+                    send_telegram(chat_id, reason_text)
 
         return "OK", 200
 
