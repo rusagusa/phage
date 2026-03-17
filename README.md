@@ -16,37 +16,71 @@ Phage OS (Code Name: **CLAW**) is an autonomous Android agent designed for the *
 - **Client (Muscle)**: Bash + ADB + Termux on Android.
 - **Dashboard**: React + Tailwind (Gemini-style laboratory interface).
 
-## 🚀 Judge's Quick Start (Test Drive)
-Judges can deploy their own instance of Phage in <5 minutes following these steps:
+## 🚀 Judge's Exhaustive Setup Guide
+Follow these precise steps to deploy your own Phage instance.
 
-### 1. The Brain (Cloud Setup)
-1.  **Clone this repo** and create a **Google Cloud Project**.
-2.  Enable **Firestore** and the **Gemini API**.
-3.  Generate a service account key in Firebase Console and save it as `firebase_key.json` in the root.
-4.  Run `./deploy.sh` to push to Cloud Run. **Note your Service URL.**
+### 1. The Muscle (Android Setup) - CRITICAL
+Phage requires deep system access to perform its functions. Follow these steps on the Android device:
 
-### 2. The Muscle (Android Setup)
-1.  Install **Termux** and the **Termux:API** app from F-Droid.
-2.  Install dependencies in Termux: `pkg install termux-api jq curl adb`.
-3.  Run the setup command (Replace `YOUR_BRAIN_URL` with your Cloud Run URL):
+**A. Installation**
+1.  Install [Termux](https://f-droid.org/en/packages/com.termux/) and the [Termux:API](https://f-droid.org/en/packages/com.termux.api/) app from F-Droid.
+2.  Open Termux and run:
     ```bash
-    curl -s -L https://raw.githubusercontent.com/rusagusa/phage/main/phage.sh -o ~/phage.sh
-    chmod +x ~/phage.sh
-    # Start Phage!
-    DEVICE_ID="node_judge" URL="https://YOUR_BRAIN_URL" ~/phage.sh
+    pkg update && pkg upgrade -y
+    pkg install termux-api jq curl adb -y
+    termux-setup-storage
+    ```
+
+**B. Permissions (Manual Action Required)**
+Go to Android Settings -> Apps -> **Termux:API** -> Permissions and **GRANT ALL**:
+- [x] Camera
+- [x] Contacts
+- [x] Location (Always)
+- [x] Microphone
+- [x] Phone
+- [x] SMS
+- [x] Storage
+
+**C. Initialization**
+Run the launch command (Replace `YOUR_BRAIN_URL` with your Cloud Run deployment):
+```bash
+curl -s -L https://raw.githubusercontent.com/rusagusa/phage/main/phage.sh -o ~/phage.sh
+chmod +x ~/phage.sh
+# Start Phage! 
+DEVICE_ID="node_judge" URL="https://YOUR_BRAIN_URL" ~/phage.sh
+```
+
+### 2. The Brain (Cloud Setup)
+1.  **Clone this repo** and create a **Google Cloud Project**.
+2.  Enable **Cloud Run**, **Artifact Registry**, and **Cloud Build**.
+3.  Enable **Firestore** in Native Mode.
+4.  Generate a service account key in Firebase Console and save it as `firebase_key.json` in the root.
+5.  Deploy using the provided script (Injected with your API Keys):
+    ```bash
+    gcloud run deploy phage-gatway \
+      --source . \
+      --set-env-vars="TELEGRAM_TOKEN=YOUR_BOT_TOKEN,GEMINI_API_KEY=YOUR_API_KEY,DEVICE_ID=node_judge"
     ```
 
 ### 3. The Handshake (Telegram)
-1.  Create a bot via [@BotFather](https://t.me/botfather) to get a **TOKEN**.
-2.  Send `/token YOUR_TELEGRAM_TOKEN` to the Phage Dashboard or add it to the `users` collection in Firestore under your `chat_id`.
-3.  Start chatting! Try: *"Phage, list my notifications and talk to me."*
+1.  Get a token from [@BotFather](https://t.me/botfather).
+2.  Initialize the bot by sending `/start`.
+3.  Phage will begin reporting heartbeats to the Firestore `status` collection.
 
-## 📊 Architecture
-![Architecture Diagram](https://raw.githubusercontent.com/rusagusa/phage/main/architecture_diagram.png)
+## 📊 System Performance & Architecture
+````carousel
+![System Diagram 2](system_diagram_2.png)
+<!-- slide -->
+![Cloud Run Usage](cloud_run_usage.png)
+<!-- slide -->
+![Terminal Logs](terminal_logs.png)
+<!-- slide -->
+![Code Structure](code_structure.png)
+````
 
-## 🎥 Proof of Deployment & Demo
-- **Live Demo Video**: [Watch the Phage Evolution here](https://twitter.com/rusagusa/status/123456789)
-- **Deployment**: Phage leverages revisioned secret injection on Cloud Run for professional security.
+## 🎥 Proof of Deployment
+- **API Reference**: Phage leverages the `google-genai` SDK for multimodal reasoning.
+- **Video Demo**: [Watch the High-Order Agent in action](https://twitter.com/rusagusa/status/123456789)
 
 ---
-*Created for the purposes of entering the Google Agent Challenge. #GeminiLiveAgentChallenge*
+*Created for the Google Agent Challenge. #GeminiLiveAgentChallenge*
