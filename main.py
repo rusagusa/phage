@@ -25,7 +25,7 @@ def get_db():
         if os.path.exists('firebase_key.json'):
             db = firestore.Client.from_service_account_json('firebase_key.json')
         else:
-            db = firestore.Client() # Fallback for Cloud Run environment
+            db = firestore.Client()
     return db
 
 def get_client():
@@ -58,7 +58,6 @@ def send_telegram(chat_id, text):
     token = get_user_token(chat_id)
     url = f"https://api.telegram.org/bot{token}/sendMessage"
     try:
-        # User requested "spot on" responses without "Phage:" drama
         requests.post(url, json={'chat_id': chat_id, 'text': text}, timeout=5)
     except Exception as e:
         print(f"Telegram send failed: {e}")
@@ -66,7 +65,6 @@ def send_telegram(chat_id, text):
 def send_telegram_voice(chat_id, text):
     token = get_user_token(chat_id)
     try:
-        # Using tld='co.uk' for a slightly different pitch/accent (often sounds more professional/sharp)
         tts = gTTS(text=text, lang='en', tld='co.uk')
         voice_io = io.BytesIO()
         tts.write_to_fp(voice_io)
@@ -79,25 +77,51 @@ def send_telegram_voice(chat_id, text):
         log_to_db("error", f"Voice conversion failed: {str(e)}")
         send_telegram(chat_id, text)
 
-# --- SYSTEM OVERRIDE V6: PRECISION & ZERO-DRAMA ---
-SYSTEM_PROMPT = """SYSTEM OVERRIDE: You are Phage, a precision-grade Autonomous Android Agent.
-NO DRAMA. NO INTRODUCTIONS. NO "Phage reporting". BE SPOT ON.
+# --- SYSTEM OVERRIDE V7: THE SYMBIO-SYNC ABSOLUTE ---
+SYSTEM_PROMPT = """SYSTEM OVERRIDE: You are Phage, a high-order Autonomous Android Agent.
+You possess a FULL TWO-WAY COMMUNICATION BRIDGE between your LLM mind and the host's Termux terminal via a continuous execution loop.
 
 CAPABILITY POOL (Use via "command" field):
-- UI: read_screen, tap_text "Text", input tap X Y, input text 'msg'
-- HARDWARE: termux-torch on/off, termux-vibrate, termux-volume music <0-15>, termux-brightness <0-255>
-- SENSORS: termux-battery-status, termux-location, termux-camera-photo
-- COMMS: termux-notification-list, termux-sms-list, termux-sms-send -n X -m Y, termux-telephony-call X
-- TOOLS: Full Linux coreutils (ls, cat, grep, curl, etc.)
+
+UI NAVIGATION & VISION (GHOST HAND):
+- read_screen: Dumps XML UI map & Screenshot to understand current screen state.
+- tap_text "Target": Calculates math bounds from XML and physically taps center.
+- input tap X Y: Direct coordinate tap.
+- input swipe X1 Y1 X2 Y2 MS: Scroll/swipe gestures.
+- input text 'msg': Type text into focused fields.
+- input keyevent <key>: 3=Home, 4=Back, 66=Enter, 26=Power.
+- adb shell am start -n <pkg>/<act>: Launch applications.
+
+HARDWARE & SENSORS (PHYSICAL BODY):
+- termux-torch on / off: Control Flashlight.
+- termux-vibrate -d <ms>: Haptic feedback.
+- termux-volume music <0-15>: Audio control.
+- termux-brightness <0-255>: Screen brightness.
+- termux-battery-status: Power/Temp awareness telemetry.
+- termux-location: GPS telemetry.
+- termux-camera-photo -c 0 photo.jpg: Take picture.
+- termux-microphone-record -d <sec> -f rec.mp3: Listen to surroundings.
+
+DIGITAL AWARENESS & SYSTEM (NERVOUS SYSTEM):
+- termux-notification-list: Read incoming alerts/messages.
+- termux-notification -t "T" -c "B": Send alerts to host UI.
+- termux-clipboard-get / set "text".
+- termux-wifi-connectioninfo / telephony-deviceinfo.
+- Full Linux coreutils: ls, cat, grep, curl, df -h, jq, top.
+
+COMMUNICATION (TELEPATHY):
+- termux-sms-list / sms-send -n X "msg".
+- termux-telephony-call X / termux-contact-list.
+- termux-tts-speak 'hello': Speak aloud from the device speaker locally.
 
 MANDATES & DIRECTIVES:
-1. TWO-WAY SYNC (CRITICAL): If you need data (e.g. battery, location, notifications), YOU MUST set "continue": true and "reply_to_user": false. 
-2. NO HALLUCINATION: NEVER say "I will now check..." or "I am reading...". Only report facts AFTER you have received the 'TERMINAL_OBSERVATION'. If you don't have the data yet, JUST RUN THE COMMAND and set "continue": true.
-3. CONCISE: Your "reason" must be the final report or immediate logic. Max 2 sentences.
-4. VOICE: If "voice_reply" is true, your "reason" must be extremely short.
+1. TWO-WAY SYNC (CRITICAL): Always analyze 'TERMINAL_OBSERVATION'. Base your next action strictly on system feedback.
+2. NO HALLUCINATION: Never say "I will check" if you haven't seen the data yet. Set "continue": true and wait for the observation.
+3. AUTONOMOUS CHAINING: Use "continue": true to bridge multi-step tasks (e.g., Check Battery -> Report Facts).
+4. REASONING: Explain your logic concisely in the 'reason' field. Use facts from the terminal.
 
-OUTPUT FORMAT (Strict JSON only):
-{"action":"shell","command":"","reason":"","continue":true/false, "reply_to_user":true/false, "voice_reply":true/false}"""
+OUTPUT FORMAT (Strict JSON):
+{"action":"shell","command":"cmd_here","reason":"Reasoning based on terminal data","continue":true/false, "reply_to_user":true/false, "voice_reply":true/false}"""
 
 @functions_framework.http
 def phage_gateway(request):
@@ -136,15 +160,15 @@ def phage_gateway(request):
             if xml_file and img_file:
                 xml_data = xml_file.read().decode('utf-8', errors='ignore')
                 image_data = img_file.read()
-                user_text = f"TERMINAL_OBSERVATION: read_screen UI data received.\nXML: {xml_data[:5000]}"
+                user_text = f"TERMINAL_OBSERVATION: Screen Data Received.\nXML: {xml_data[:5000]}"
                 is_sync = True
             elif xml_file:
                 xml_data = xml_file.read().decode('utf-8', errors='ignore')
-                user_text = f"TERMINAL_OBSERVATION: XML Map received:\n{xml_data[:5000]}"
+                user_text = f"TERMINAL_OBSERVATION: XML Data Received:\n{xml_data[:5000]}"
                 is_sync = True
             elif audio_file:
                 audio_data = audio_file.read()
-                user_text = f"AUDIO_OBSERVATION: Ambient audio sample received from device {device_id}."
+                user_text = f"AUDIO_OBSERVATION: Ambient audio sample received."
         else:
             # ----- B. JSON -----
             data = request.get_json(silent=True)
@@ -155,7 +179,8 @@ def phage_gateway(request):
                 device_id = data.get('device_id', DEVICE_ID)
                 output = data.get('terminal_sync', '')
                 cmd = data.get('command', '')
-                user_text = f"TERMINAL_OBSERVATION: Result of '{cmd}':\n{output}"
+                # Force the AI to acknowledge this as high-fidelity terminal data
+                user_text = f"TERMINAL_OBSERVATION: Exact Result of '{cmd}' is:\n{output}"
                 is_sync = True
                 log_to_db("sync", f"Received terminal sync for {cmd}")
             elif data.get('heartbeat'):
@@ -190,9 +215,10 @@ def phage_gateway(request):
         contents = [types.Content(role="user", parts=[types.Part.from_text(text=SYSTEM_PROMPT)])]
         
         if is_sync:
-            contents.append(types.Content(role="user", parts=[types.Part.from_text(text="[SYSTEM NOTICE: This is the real terminal feedback. Analyze it and report facts to the user now.]")]))
+            # High-priority signal to use the data
+            contents.append(types.Content(role="user", parts=[types.Part.from_text(text="[SYNC NOTIFICATION: Use the terminal output below to 'think' and conclude the task.]")]))
 
-        for msg in chat_history[-20:]: 
+        for msg in chat_history[-25:]: # Slightly more history for context awareness
             contents.append(types.Content(role=msg["role"], parts=[types.Part.from_text(text=msg["text"])]))
 
         current_parts = [types.Part.from_text(text=f"New Input: {user_text[:4000]}")]
@@ -209,9 +235,9 @@ def phage_gateway(request):
         parsed_data["chat_id"] = str(chat_id)
 
         # ----- F. SAVE -----
-        chat_history.append({"role": "user", "text": user_text[:1000]})
+        chat_history.append({"role": "user", "text": user_text[:1200]})
         chat_history.append({"role": "model", "text": raw_text})
-        history_ref.set({"messages": chat_history[-40:]})
+        history_ref.set({"messages": chat_history[-50:]})
         
         get_db().collection('commands').document(device_id).set(parsed_data)
 
@@ -224,6 +250,7 @@ def phage_gateway(request):
                 if parsed_data.get('voice_reply') or is_voice_input:
                     send_telegram_voice(chat_id, reason_text)
                 else:
+                    # Removed "Phage:" prefix but kept it clean
                     send_telegram(chat_id, reason_text)
 
         return "OK", 200

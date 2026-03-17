@@ -23,7 +23,7 @@ Follow these precise steps to deploy your own Phage instance.
 Phage requires deep system access to perform its functions. Follow these steps on the Android device:
 
 **A. Installation**
-1.  Install [Termux](https://f-droid.org/en/packages/com.termux/) and the [Termux:API](https://f-droid.org/en/packages/com.termux.api/) app from F-Droid.
+1.  Install [Termux](https://f-droid.org/en/packages/com.termux/ ) and the [Termux:API](https://f-droid.org/en/packages/com.termux.api/ ) app from F-Droid.
 2.  Open Termux and run:
     ```bash
     pkg update && pkg upgrade -y
@@ -68,15 +68,21 @@ DEVICE_ID="node_judge" URL="https://YOUR_BRAIN_URL" ~/phage.sh
 3.  Phage will begin reporting heartbeats to the Firestore `status` collection.
 
 ## 📊 System Performance & Architecture
-````carousel
-![System Diagram 2](system_diagram_2.png)
-<!-- slide -->
-![Cloud Run Usage](cloud_run_usage.png)
-<!-- slide -->
-![Terminal Logs](terminal_logs.png)
-<!-- slide -->
+
+### Full Architecture Diagram
+![System Architecture](architecture_diagram.png)
+
+### System Evolution & Insights
+![System Evolution](system_diagram_2.png)
+
+### Cloud Real-time Execution Usage
+![Cloud Usage](cloud_run_usage.png)
+
+### Terminal Sync Logs (Full Duplex)
+![Terminal Sync](terminal_logs.png)
+
+### Code Structure (Autonomous Backbone)
 ![Code Structure](code_structure.png)
-````
 
 ## 🎥 Proof of Deployment
 - **API Reference**: Phage leverages the `google-genai` SDK for multimodal reasoning.
