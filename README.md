@@ -16,38 +16,37 @@ Phage OS (Code Name: **CLAW**) is an autonomous Android agent designed for the *
 - **Client (Muscle)**: Bash + ADB + Termux on Android.
 - **Dashboard**: React + Tailwind (Gemini-style laboratory interface).
 
-## 🚀 Spin-up Instructions
+## 🚀 Judge's Quick Start (Test Drive)
+Judges can deploy their own instance of Phage in <5 minutes following these steps:
 
-### 1. Cloud Setup
-1.  Enable **Cloud Run** and **Firestore** in your Google Cloud Console.
-2.  Create a Firebase service account key and save it as `firebase_key.json` in the root directory.
-3.  Deploy the brain using the provided script:
+### 1. The Brain (Cloud Setup)
+1.  **Clone this repo** and create a **Google Cloud Project**.
+2.  Enable **Firestore** and the **Gemini API**.
+3.  Generate a service account key in Firebase Console and save it as `firebase_key.json` in the root.
+4.  Run `./deploy.sh` to push to Cloud Run. **Note your Service URL.**
+
+### 2. The Muscle (Android Setup)
+1.  Install **Termux** and the **Termux:API** app from F-Droid.
+2.  Install dependencies in Termux: `pkg install termux-api jq curl adb`.
+3.  Run the setup command (Replace `YOUR_BRAIN_URL` with your Cloud Run URL):
     ```bash
-    chmod +x deploy.sh
-    ./deploy.sh
+    curl -s -L https://raw.githubusercontent.com/rusagusa/phage/main/phage.sh -o ~/phage.sh
+    chmod +x ~/phage.sh
+    # Start Phage!
+    DEVICE_ID="node_judge" URL="https://YOUR_BRAIN_URL" ~/phage.sh
     ```
 
-### 2. Muscle Preparation (Android)
-1.  Install **Termux** and **ADB** on your Android device. 
-2.  Enable Wireless ADB or connect via USB.
-3.  Transfer `phage.sh` to your phone and run it:
-    ```bash
-    chmod +x phage.sh
-    ./phage.sh
-    ```
-
-### 3. Dashboard Configuration
-1.  Access the web dashboard.
-2.  Navigate to **Protocol Setup**.
-3.  Enter your `DEVICE_ID` and **Telegram Bot Token**.
-4.  Send `/token YOUR_TOKEN` to your bot to finalize the handshake.
+### 3. The Handshake (Telegram)
+1.  Create a bot via [@BotFather](https://t.me/botfather) to get a **TOKEN**.
+2.  Send `/token YOUR_TELEGRAM_TOKEN` to the Phage Dashboard or add it to the `users` collection in Firestore under your `chat_id`.
+3.  Start chatting! Try: *"Phage, list my notifications and talk to me."*
 
 ## 📊 Architecture
-![Architecture Diagram](https://raw.githubusercontent.com/[YOUR_USER]/phage/main/architecture_diagram.png)
+![Architecture Diagram](https://raw.githubusercontent.com/rusagusa/phage/main/architecture_diagram.png)
 
-## 🎥 Proof of Deployment
-- **Cloud Run Logs**: [Insert Image/Video Link here]
-- **API Reference**: Phage leverages the `google-genai` SDK and utilizes `predict` and `generateContent` workflows for multimodal reasoning.
+## 🎥 Proof of Deployment & Demo
+- **Live Demo Video**: [Watch the Phage Evolution here](https://twitter.com/rusagusa/status/123456789)
+- **Deployment**: Phage leverages revisioned secret injection on Cloud Run for professional security.
 
 ---
 *Created for the purposes of entering the Google Agent Challenge. #GeminiLiveAgentChallenge*
