@@ -74,14 +74,18 @@ while true; do
                 curl -s -X POST -F "xml_map=@./uidump.xml" -F "image=@./screen.png" -F "device_id=$DEVICE_ID" -F "chat_id=$ORIGIN_CHAT_ID" "$URL"
             else
                 echo "🧬 Executing: $COMMAND"
-                # THE FIX: Avoid 'eval' inside timeout directly. Use bash -c explicitly.
                 EXEC_OUTPUT=$(timeout --foreground 30s bash -c "$COMMAND" 2>&1)
                 EXIT_CODE=$?
+                # Report back to the specific user chat safely using jq
+                PAYLOAD=$(jq -n \
+                    --arg out "$EXEC_OUTPUT" \
+                    --arg code "$EXIT_CODE" \
+                    --arg cmd "$COMMAND" \
+                    --arg dev "$DEVICE_ID" \
+                    --arg chat "$ORIGIN_CHAT_ID" \
+                    '{terminal_sync: $out, exit_code: $code, command: $cmd, device_id: $dev, chat_id: $chat}')
                 
-                # Report back to the specific user chat
-                curl -s -X POST -H "Content-Type: application/json" \
-                     -d "{\"terminal_sync\": \"$EXEC_OUTPUT\", \"exit_code\": \"$EXIT_CODE\", \"command\": \"$COMMAND\", \"device_id\": \"$DEVICE_ID\", \"chat_id\": \"$ORIGIN_CHAT_ID\"}" \
-                     "$URL"
+                curl -s -X POST -H "Content-Type: application/json" -d "$PAYLOAD" "$URL"
             fi
             
             if [ "$CONTINUE" == "true" ]; then
