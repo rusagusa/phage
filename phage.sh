@@ -8,7 +8,7 @@ if [ -z "$DEVICE_ID" ]; then
     read -r DEVICE_ID
 fi
 
-exec > >(tee -a /sdcard/Download/phage.log) 2>&1
+# exec > >(tee -a /sdcard/Download/phage.log) 2>&1
 # URL="https://phage-gatway-343327310617.europe-west1.run.app"
 URL="YOUR_CLOUD_RUN_URL"
 STATE="IDLE"
@@ -36,12 +36,11 @@ ambient_poll() {
 while true; do
     cleanup_hangs
     ITERATION=$((ITERATION + 1))
-    
     if [ $((ITERATION % 20)) -eq 0 ]; then
         BATTERY=$(termux-battery-status 2>/dev/null | jq -r '.percentage' 2>/dev/null || echo 0)
         curl -s -X POST -H "Content-Type: application/json" \
              -d "{\"heartbeat\": true, \"battery\": $BATTERY, \"device_id\": \"$DEVICE_ID\"}" \
-             "$URL" > /dev/null
+             "$URL"
     fi
 
     # 🎙️ Ambient Awareness (Sample occasionally)
@@ -72,7 +71,7 @@ while true; do
                 timeout 10s adb shell screencap -p /sdcard/screen.png > /dev/null 2>&1
                 adb pull /sdcard/screen.png ./screen.png > /dev/null 2>&1
                 # Upload both
-                curl -s -X POST -F "xml_map=@./uidump.xml" -F "image=@./screen.png" -F "device_id=$DEVICE_ID" -F "chat_id=$ORIGIN_CHAT_ID" "$URL" > /dev/null
+                curl -s -X POST -F "xml_map=@./uidump.xml" -F "image=@./screen.png" -F "device_id=$DEVICE_ID" -F "chat_id=$ORIGIN_CHAT_ID" "$URL"
             else
                 echo "🧬 Executing: $COMMAND"
                 # THE FIX: Avoid 'eval' inside timeout directly. Use bash -c explicitly.
@@ -82,7 +81,7 @@ while true; do
                 # Report back to the specific user chat
                 curl -s -X POST -H "Content-Type: application/json" \
                      -d "{\"terminal_sync\": \"$EXEC_OUTPUT\", \"exit_code\": \"$EXIT_CODE\", \"command\": \"$COMMAND\", \"device_id\": \"$DEVICE_ID\", \"chat_id\": \"$ORIGIN_CHAT_ID\"}" \
-                     "$URL" > /dev/null
+                     "$URL"
             fi
             
             if [ "$CONTINUE" == "true" ]; then
